@@ -71,16 +71,31 @@ export default function PrescriptionUpload() {
     );
   }
 
-  function handleContinue() {
-    if (!file && medicines.length === 0) {
-      setMessage("Please upload a prescription or add medicine details.");
-      return;
-    }
-
-    setMessage(
-      "Your prescription details are ready. Backend OCR and medication analysis integration is the next step."
-    );
+const handleContinue = () => {
+  if (!file && medicines.length === 0) {
+    setMessage("Please upload a prescription or add medicines manually.");
+    return;
   }
+
+  const analysisData = {
+    medicines: medicines.map((item) => ({
+      medicine_name: item.name,
+      active_ingredient: "",
+      strength: item.dosage,
+      dose: item.dosage,
+      frequency: item.frequency,
+      duration: item.duration,
+      identification_status: "Not confirmed",
+      identification_confidence: null,
+    })),
+    prescription_id: "Manual-entry",
+    raw_ocr_text: "",
+  };
+
+  navigate("/prescription-analysis", {
+    state: { analysisData },
+  });
+};
 
   return (
     <div className="prescription-page">

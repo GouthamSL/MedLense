@@ -1,5 +1,6 @@
 import Dashboard from "./pages/Dashboard";
 import PrescriptionUpload from "./pages/PrescriptionUpload";
+import PrescriptionAnalysis from "./pages/PrescriptionAnalysis";
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import {
@@ -248,13 +249,16 @@ function App() {
     <Route path="/login" element={<Login />} />
     <Route path="/signup" element={<Signup />} />
     <Route path="/dashboard" element={<Dashboard />} />
-
     <Route
       path="/prescription-upload"
       element={<PrescriptionUpload />}
     />
+    <Route
+      path="/prescription-analysis"
+      element={<PrescriptionAnalysis />}
+    />
   </Routes>
-    </BrowserRouter>
+</BrowserRouter>
   );
 }
 

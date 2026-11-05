@@ -144,14 +144,16 @@ export default function Dashboard() {
         key={item.name}
         className={`nav-item ${active === item.name ? "active" : ""}`}
         onClick={() => {
-          setActive(item.name);
-          setMenuOpen(false);
+  setActive(item.name);
+  setMenuOpen(false);
 
-          if (item.name === "Upload Prescription") {
-            navigate("/prescription-upload");
-          }
-        }}
-      >
+  if (item.name === "Upload Prescription") {
+    navigate("/prescription-upload");
+  } else if (item.name === "Analysis") {
+    navigate("/prescription-analysis");
+  }
+}}
+>
         <Icon size={19} />
         <span>{item.name}</span>
       </button>
@@ -343,7 +345,12 @@ export default function Dashboard() {
                   <ArrowUpRight />
                 </button>
 
-                <button onClick={() => setActive("Analysis")}>
+                <button
+  onClick={() => {
+    setActive("Analysis");
+    navigate("/prescription-analysis");
+  }}
+>
                   <div className="quick-icon blue"><Activity /></div>
                   <div>
                     <strong>View Analysis</strong>
