@@ -1,4 +1,4 @@
-﻿"""Evidence manager loads reference CSV files and provides lookup utilities.
+"""Evidence manager loads reference CSV files and provides lookup utilities.
 
 The manager is deliberately lightweight â€“ it only reads the CSVs once at
 initialisation and caches the resulting pandas DataFrames.  All lookâ€‘ups are
@@ -24,6 +24,45 @@ class EvidenceManager:
     """
 
     def __init__(self, base_dir: pathlib.Path | None = None) -> None:
+        """Create an EvidenceManager.
+
+        The constructor loads all CSV knowledge bases and records whether optional
+        datasets are missing or empty.  This information is later used by the
+        ``MedicationSafetyEngine`` to surface transparent limitations to the user.
+        """
+        # Resolve to the provided base directory or the default project root.
+        if base_dir is None:
+            base_dir = pathlib.Path(__file__).resolve().parents[2]
+        db_dir = base_dir / "database"
+        # Load CSVs lazily – if a file is missing we keep an empty DataFrame.
+        self.drugs_df = self._load_csv(db_dir / "drugs.csv")
+        self.interactions_df = self._load_csv(db_dir / "interactions.csv")
+        self.safety_rules_df = self._load_csv(db_dir / "safety_rules.csv")
+        # Load adverse effects dataset (optional). If missing, an empty DataFrame is used.
+        self.adverse_effects_df = self._load_csv(db_dir / "adverse_effects.csv")
+
+        # Flags for optional knowledge sources – used for transparent reporting.
+        self._missing_adverse_effects = self.adverse_effects_df.empty
+        """Create an EvidenceManager.
+
+        The constructor loads all CSV knowledge bases and records whether optional
+        datasets are missing or empty.  This information is later used by the
+        ``MedicationSafetyEngine`` to surface transparent limitations to the user.
+        """
+        # Resolve to the provided base directory or the default project root.
+        if base_dir is None:
+            base_dir = pathlib.Path(__file__).resolve().parents[2]
+        db_dir = base_dir / "database"
+        # Load CSVs lazily – if a file is missing we keep an empty DataFrame.
+        self.drugs_df = self._load_csv(db_dir / "drugs.csv")
+        self.interactions_df = self._load_csv(db_dir / "interactions.csv")
+        self.safety_rules_df = self._load_csv(db_dir / "safety_rules.csv")
+        # Load adverse effects dataset (optional). If missing, an empty DataFrame is used.
+        self.adverse_effects_df = self._load_csv(db_dir / "adverse_effects.csv")
+
+        # Flags for optional knowledge sources – used for transparent reporting.
+        self._missing_adverse_effects = self.adverse_effects_df.empty
+
         """Create an EvidenceManager.
 
         Parameters

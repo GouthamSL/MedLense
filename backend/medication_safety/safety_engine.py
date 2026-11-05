@@ -64,11 +64,18 @@ class MedicationSafetyEngine:
         findings.extend(self.allergy_checker.check(prescriptions, allergies))
         findings.extend(self.disease_checker.check(prescriptions, patient_diseases))
 
+        # Collect transparent limitations about optional evidence sources.
+        limitations: List[str] = []
+        if getattr(self.evidence, "_missing_adverse_effects", False):
+            limitations.append(
+                "Adverse‑effect dataset is missing or empty; no adverse‑effect findings will be produced."
+            )
+
         # No additional limitations are collected here – individual checkers emit
         # ``information_missing`` findings where appropriate.
         return SafetyAnalysisResult(
             analysis_status="completed",
             findings=findings,
-            limitations=[],
+            limitations=limitations,
         )
 
