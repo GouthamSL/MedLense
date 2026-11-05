@@ -1,8 +1,8 @@
-"""Evidence manager loads reference CSV files and provides lookup utilities.
+﻿"""Evidence manager loads reference CSV files and provides lookup utilities.
 
-The manager is deliberately lightweight – it only reads the CSVs once at
-initialisation and caches the resulting pandas DataFrames.  All look‑ups are
-case‑insensitive and return ``None`` when a record cannot be found, allowing
+The manager is deliberately lightweight â€“ it only reads the CSVs once at
+initialisation and caches the resulting pandas DataFrames.  All lookâ€‘ups are
+caseâ€‘insensitive and return ``None`` when a record cannot be found, allowing
 callers to emit a limitation rather than fabricate data.
 """
 
@@ -10,17 +10,17 @@ import pathlib
 from typing import Optional, Tuple
 import pandas as pd
 
-# Resolve the project‑root ``database`` directory relative to this file.
+# Resolve the projectâ€‘root ``database`` directory relative to this file.
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 DB_DIR = BASE_DIR / "database"
 
 class EvidenceManager:
-    """Centralised access to the CSV‑based knowledge base.
+    """Centralised access to the CSVâ€‘based knowledge base.
 
     The class loads three CSV files:
-    * ``drugs.csv`` – basic drug properties and dosage limits.
-    * ``interactions.csv`` – known pairwise drug interactions.
-    * ``safety_rules.csv`` – rule‑based contraindications (e.g. disease rules).
+    * ``drugs.csv`` â€“ basic drug properties and dosage limits.
+    * ``interactions.csv`` â€“ known pairwise drug interactions.
+    * ``safety_rules.csv`` â€“ ruleâ€‘based contraindications (e.g. disease rules).
     """
 
     def __init__(self, base_dir: pathlib.Path | None = None) -> None:
@@ -30,16 +30,18 @@ class EvidenceManager:
         ----------
         base_dir: pathlib.Path | None
             Optional directory that contains the ``database`` folder.  If omitted,
-            the manager falls back to the project‑root ``database`` directory.
+            the manager falls back to the projectâ€‘root ``database`` directory.
         """
         # Resolve to the provided base directory or the default project root.
         if base_dir is None:
             base_dir = pathlib.Path(__file__).resolve().parents[2]
         db_dir = base_dir / "database"
-        # Load CSVs lazily – if a file is missing we keep an empty DataFrame.
+        # Load CSVs lazily â€“ if a file is missing we keep an empty DataFrame.
         self.drugs_df = self._load_csv(db_dir / "drugs.csv")
         self.interactions_df = self._load_csv(db_dir / "interactions.csv")
         self.safety_rules_df = self._load_csv(db_dir / "safety_rules.csv")
+        # Load adverse effects dataset (optional). If missing, an empty DataFrame is used.
+        self.adverse_effects_df = self._load_csv(db_dir / "adverse_effects.csv")
 
     @staticmethod
     def _load_csv(path: pathlib.Path) -> pd.DataFrame:
@@ -56,10 +58,10 @@ class EvidenceManager:
         return df
 
     # ---------------------------------------------------------------------
-    # Drug look‑ups
+    # Drug lookâ€‘ups
     # ---------------------------------------------------------------------
     def get_drug_record(self, medicine_name: str) -> Optional[pd.Series]:
-        """Return the drug row matching *medicine_name* (case‑insensitive).
+        """Return the drug row matching *medicine_name* (caseâ€‘insensitive).
 
         The function returns ``None`` when the drug is not present in the CSV.
         """
@@ -69,17 +71,17 @@ class EvidenceManager:
         matches = self.drugs_df[mask]
         if matches.empty:
             return None
-        # Return the first match – duplicate rows are unexpected but harmless.
+        # Return the first match â€“ duplicate rows are unexpected but harmless.
         return matches.iloc[0]
 
     # ---------------------------------------------------------------------
-    # Interaction look‑ups
+    # Interaction lookâ€‘ups
     # ---------------------------------------------------------------------
     def get_interaction(self, med_a: str, med_b: str) -> Optional[Tuple[str, str, str]]:
         """Lookup a known interaction between *med_a* and *med_b*.
 
         Returns a tuple ``(severity, explanation, evidence_source)`` or ``None``
-        if the pair is not recorded.  The CSV is considered order‑independent.
+        if the pair is not recorded.  The CSV is considered orderâ€‘independent.
         """
         if self.interactions_df.empty:
             return None
@@ -99,17 +101,32 @@ class EvidenceManager:
         return severity, explanation, evidence
 
     # ---------------------------------------------------------------------
-    # Safety rule look‑ups (disease contraindications, etc.)
+    # Safety rule lookâ€‘ups (disease contraindications, etc.)
     # ---------------------------------------------------------------------
-    def get_disease_contraindications(self, medicine_name: str) -> pd.DataFrame:
-        """Return all rows from ``safety_rules.csv`` that apply to *medicine_name*.
+    def get_adverse_effects(self, active_ingredient: str, symptom: str) -> pd.DataFrame:
+        """Return rows from ``adverse_effects.csv`` matching *active_ingredient* and *symptom*.
 
-        The CSV is expected to have a ``rule_type`` column.  Only rows where
-        ``rule_type == "disease_contraindication"`` are returned.  Matching is
-        case‑insensitive on the ``medicine_name`` column.
+        Matching is caseâ€‘insensitive and uses straightforward normalisation (lowerâ€‘casing
+        and stripping surrounding whitespace).  The caller may apply additional
+        synonym handling if desired.
         """
+        if self.adverse_effects_df.empty:
+            return pd.DataFrame()
+        ing_mask = self.adverse_effects_df["active_ingredient"].str.lower() == active_ingredient.lower()
+        sym_mask = self.adverse_effects_df["symptom"].str.lower() == symptom.lower()
+        return self.adverse_effects_df[ing_mask & sym_mask]
+
+    def get_disease_contraindications(self, medicine_name: str) -> pd.DataFrame:
+        """Return disease contraindication rules for a medicine."""
         if self.safety_rules_df.empty:
             return pd.DataFrame()
-        mask_type = self.safety_rules_df["rule_type"].str.lower() == "disease_contraindication"
-        mask_name = self.safety_rules_df["medicine_name"].str.lower() == medicine_name.lower()
-        return self.safety_rules_df[mask_type & mask_name]
+
+        required = {"rule_type", "medicine_name", "disease"}
+        if not required.issubset(self.safety_rules_df.columns):
+            return pd.DataFrame()
+
+        mask_type = self.safety_rules_df["rule_type"].fillna("").str.strip().str.lower() == "disease_contraindication"
+        mask_name = self.safety_rules_df["medicine_name"].fillna("").str.strip().str.lower() == medicine_name.strip().lower()
+
+        return self.safety_rules_df[mask_type & mask_name].copy()
+
