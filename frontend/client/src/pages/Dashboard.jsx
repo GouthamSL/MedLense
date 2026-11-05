@@ -152,6 +152,9 @@ export default function Dashboard() {
   } else if (item.name === "Analysis") {
     navigate("/prescription-analysis");
   }
+  else if (item.name === "History") {
+  navigate("/history");
+}
 }}
 >
         <Icon size={19} />
@@ -173,17 +176,24 @@ export default function Dashboard() {
             <strong>Your health, our priority.</strong>
             <p>Make informed healthcare decisions with MedLense.</p>
           </div>
-
-          <div className="profile-mini">
-            <div className="profile-avatar">K</div>
-            <div>
-              <strong>Krupa</strong>
-              <span>Patient account</span>
-            </div>
-            <ChevronDown size={16} />
           </div>
-        </div>
+          <button
+  type="button"
+  className="header-profile profile-clickable"
+  onClick={() => {
+    console.log("Patient profile clicked");
+    navigate("/patient-profile");
+  }}
+>
+  <div className="profile-avatar">K</div>
+
+  <div className="header-user">
+    <strong>Krupa</strong>
+    <span>Patient</span>
+  </div>
+</button>
       </aside>
+      
 
       <main className="dashboard-main">
 
@@ -350,6 +360,7 @@ export default function Dashboard() {
     setActive("Analysis");
     navigate("/prescription-analysis");
   }}
+  
 >
                   <div className="quick-icon blue"><Activity /></div>
                   <div>
@@ -359,7 +370,12 @@ export default function Dashboard() {
                   <ArrowUpRight />
                 </button>
 
-                <button onClick={() => setActive("History")}>
+                <button 
+  onClick={() => {
+    setActive("History");
+    navigate("/history");
+  }}
+>
                   <div className="quick-icon purple"><History /></div>
                   <div>
                     <strong>Medical History</strong>
