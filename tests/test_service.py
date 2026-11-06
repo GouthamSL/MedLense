@@ -1,3 +1,4 @@
+
 """Unit tests for PrescriptionIntelligenceService orchestration."""
 
 import pytest
@@ -11,7 +12,10 @@ from tests.conftest import create_synthetic_prescription_image
 
 
 def test_service_end_to_end_empty_db(synthetic_prescription_png):
-    service = PrescriptionIntelligenceService()
+    # Explicitly use an empty database for this test.
+    identifier = MedicineIdentifier(db_path="non_existent_test_drugs.csv")
+    service = PrescriptionIntelligenceService(medicine_identifier=identifier)
+
     result, audit = service.process_prescription_image(
         image_bytes=synthetic_prescription_png,
         filename="rx_sample.png",

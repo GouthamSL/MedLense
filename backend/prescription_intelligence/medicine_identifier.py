@@ -1,16 +1,17 @@
+
 """Medicine identification and normalization module.
 
-Matches extracted medicine candidates against the reference database (drugs.csv)
+Matches extracted medicine candidates against the reference database
 using exact case-insensitive matching and carefully controlled fuzzy matching.
-Maintains strict separation between OCR quality and database identification confidence.
-Gracefully handles an empty database without fabricating drugs or active ingredients.
+
+Ambiguous medicine or strength matches require verification.
 """
 
 import csv
-from dataclasses import dataclass
 import difflib
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +20,8 @@ logger = logging.getLogger("prescription_intelligence.identifier")
 
 @dataclass
 class DrugRecord:
-    """Drug definition from reference database."""
+    """Drug definition from the reference database."""
+
     name: str
     active_ingredient: Optional[str] = None
     strength: Optional[str] = None
@@ -28,99 +30,175 @@ class DrugRecord:
 @dataclass
 class IdentificationResult:
     """Outcome of identifying a candidate medicine against reference data."""
+
     medicine_name: str
     active_ingredient: Optional[str]
     strength: Optional[str]
-    identification_status: str  # "verified", "fuzzy_matched", "unverified", "unrecognized", "requires_verification"
-    identification_confidence: Optional[float]  # Strictly reference-matching confidence (0.0 to 1.0)
+    identification_status: str
+    identification_confidence: Optional[float]
 
 
 class MedicineIdentifier:
-    """Engine for identifying medicines against reference data with strict confidence boundaries."""
+    """Engine for identifying medicines against reference data."""
 
-    FUZZY_ACCEPTANCE_THRESHOLD = 0.80  # Minimum similarity ratio to accept a fuzzy match (handles common OCR typos like Amaxcilin)
-    LOW_OCR_CONFIDENCE_THRESHOLD = 0.55  # Below which items require human verification
+    FUZZY_ACCEPTANCE_THRESHOLD = 0.80
+    LOW_OCR_CONFIDENCE_THRESHOLD = 0.55
 
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or os.getenv("DRUGS_DB_PATH", "database/drugs.csv")
+        self.db_path = db_path or os.getenv(
+            "DRUGS_DB_PATH", "database/drugs.csv"
+        )
         self._records: list[DrugRecord] = []
         self._exact_index: dict[str, list[DrugRecord]] = {}
         self.reload_database()
 
     @property
-    def record_count(self) -> int:
-        """Return the number of loaded drug records."""
-        return len(self._records)
-
-    @property
     def is_database_empty(self) -> bool:
-        """Whether the reference database contains any records."""
         return len(self._records) == 0
 
+    @property
+    def record_count(self) -> int:
+        """Return the number of medicine records loaded."""
+        return len(self._records)
+
     def get_known_drug_names(self) -> set[str]:
-        """Return lowercase set of all known drug names in reference database."""
+        """Return lowercase set of all known drug names."""
         return set(self._exact_index.keys())
 
     def reload_database(self) -> None:
-        """Load or reload reference drug dataset from CSV file."""
+        """Load or reload the reference drug dataset from CSV."""
+
         self._records.clear()
         self._exact_index.clear()
 
         csv_file = Path(self.db_path)
+
         if not csv_file.exists() or csv_file.stat().st_size == 0:
-            logger.info("Reference drug database at '%s' is empty or absent (0 records).", self.db_path)
+            logger.info(
+                "Reference drug database at '%s' is empty or absent.",
+                self.db_path,
+            )
             return
 
         try:
-            with open(csv_file, mode="r", encoding="utf-8", errors="replace") as f:
-                reader = csv.DictReader(f)
+            with open(
+                csv_file,
+                mode="r",
+                encoding="utf-8",
+                errors="replace",
+            ) as file:
+                reader = csv.DictReader(file)
+
                 if not reader.fieldnames:
                     return
 
-                # Map column variations
-                name_col = self._find_column(reader.fieldnames, ["name", "drug_name", "brand_name", "medicine_name"])
-                active_col = self._find_column(reader.fieldnames, ["active_ingredient", "generic_name", "composition", "ingredient"])
-                strength_col = self._find_column(reader.fieldnames, ["strength", "dosage", "dose_strength"])
+                name_col = self._find_column(
+                    reader.fieldnames,
+                    ["name", "drug_name", "brand_name", "medicine_name"],
+                )
+
+                active_col = self._find_column(
+                    reader.fieldnames,
+                    [
+                        "active_ingredient",
+                        "generic_name",
+                        "composition",
+                        "ingredient",
+                    ],
+                )
+
+                strength_col = self._find_column(
+                    reader.fieldnames,
+                    ["strength", "dosage", "dose_strength"],
+                )
 
                 if not name_col:
-                    logger.warning("No medicine name column recognized in '%s'.", self.db_path)
+                    logger.warning(
+                        "No medicine name column recognized in '%s'.",
+                        self.db_path,
+                    )
                     return
 
                 for row in reader:
                     raw_name = (row.get(name_col) or "").strip()
+
                     if not raw_name:
                         continue
-                    active = (row.get(active_col) or "").strip() or None if active_col else None
-                    strength = (row.get(strength_col) or "").strip() or None if strength_col else None
 
-                    rec = DrugRecord(name=raw_name, active_ingredient=active, strength=strength)
-                    self._records.append(rec)
+                    active = (
+                        (row.get(active_col) or "").strip() or None
+                        if active_col
+                        else None
+                    )
+
+                    strength = (
+                        (row.get(strength_col) or "").strip() or None
+                        if strength_col
+                        else None
+                    )
+
+                    record = DrugRecord(
+                        name=raw_name,
+                        active_ingredient=active,
+                        strength=strength,
+                    )
+
+                    self._records.append(record)
+
                     key = raw_name.lower()
-                    if key not in self._exact_index:
-                        self._exact_index[key] = []
-                    self._exact_index[key].append(rec)
+                    self._exact_index.setdefault(key, []).append(record)
 
-            logger.info("Loaded %d drug records from '%s'.", len(self._records), self.db_path)
+            logger.info(
+                "Loaded %d drug records from '%s'.",
+                len(self._records),
+                self.db_path,
+            )
+
         except Exception as exc:
-            logger.error("Error reading drug database '%s': %s", self.db_path, exc)
+            logger.error(
+                "Error reading drug database '%s': %s",
+                self.db_path,
+                exc,
+            )
 
     def load_custom_records(self, records: list[DrugRecord]) -> None:
         """Inject custom drug records for testing or runtime customization."""
+
         self._records = list(records)
         self._exact_index.clear()
-        for rec in self._records:
-            key = rec.name.lower()
-            if key not in self._exact_index:
-                self._exact_index[key] = []
-            self._exact_index[key].append(rec)
+
+        for record in self._records:
+            key = record.name.lower()
+            self._exact_index.setdefault(key, []).append(record)
 
     @staticmethod
-    def _find_column(fieldnames: list[str], candidates: list[str]) -> Optional[str]:
-        lookup = {col.lower().strip(): col for col in fieldnames}
-        for cand in candidates:
-            if cand in lookup:
-                return lookup[cand]
+    def _find_column(
+        fieldnames: list[str],
+        candidates: list[str],
+    ) -> Optional[str]:
+        """Find a matching CSV column name."""
+
+        lookup = {
+            col.lower().strip(): col
+            for col in fieldnames
+        }
+
+        for candidate in candidates:
+            if candidate in lookup:
+                return lookup[candidate]
+
         return None
+
+    @staticmethod
+    def _normalize_strength(
+        strength: Optional[str],
+    ) -> Optional[str]:
+        """Normalize strength text for comparison."""
+
+        if not strength:
+            return None
+
+        return "".join(strength.lower().split())
 
     def identify_medicine(
         self,
@@ -128,71 +206,161 @@ class MedicineIdentifier:
         extracted_strength: Optional[str] = None,
         ocr_confidence: Optional[float] = None,
     ) -> IdentificationResult:
-        """Identify a candidate medicine against reference data.
+        """Identify a medicine while avoiding ambiguous assignments."""
 
-        Applies exact matching, controlled fuzzy matching, and handles empty reference data
-        without fabricating drugs. Separates OCR quality from database match confidence.
-        """
         clean_cand = candidate_name.strip()
         cand_lower = clean_cand.lower()
 
-        # If OCR confidence is exceptionally low, flag for human verification
-        if ocr_confidence is not None and ocr_confidence < self.LOW_OCR_CONFIDENCE_THRESHOLD:
+        # CASE 1: Low OCR confidence.
+        if (
+            ocr_confidence is not None
+            and ocr_confidence < self.LOW_OCR_CONFIDENCE_THRESHOLD
+        ):
             return IdentificationResult(
                 medicine_name=clean_cand,
                 active_ingredient=None,
                 strength=extracted_strength,
                 identification_status="requires_verification",
-                identification_confidence=None,  # OCR confidence kept separate
+                identification_confidence=None,
             )
 
-        # CASE 1: Database is empty (as in default repository state)
+        # CASE 2: Empty reference database.
         if self.is_database_empty:
-            # Preserve extracted name, do NOT fabricate active ingredients or claim verified status
-            # Flag unknown candidate for verification
             return IdentificationResult(
                 medicine_name=clean_cand,
                 active_ingredient=None,
                 strength=extracted_strength,
                 identification_status="unverified",
-                identification_confidence=None,  # Not verified against DB
+                identification_confidence=None,
             )
 
-        # CASE 2: Populated database - Exact case-insensitive matching
+        # CASE 3: Exact medicine-name matching.
         if cand_lower in self._exact_index:
             candidates = self._exact_index[cand_lower]
-            selected = self._select_best_by_strength(candidates, extracted_strength)
+
+            if extracted_strength:
+                target = self._normalize_strength(extracted_strength)
+
+                matching = [
+                    record
+                    for record in candidates
+                    if self._normalize_strength(record.strength) == target
+                ]
+
+                if len(matching) == 1:
+                    selected = matching[0]
+
+                    return IdentificationResult(
+                        medicine_name=selected.name,
+                        active_ingredient=selected.active_ingredient,
+                        strength=extracted_strength,
+                        identification_status="verified",
+                        identification_confidence=1.0,
+                    )
+
+            elif len(candidates) == 1:
+                selected = candidates[0]
+
+                return IdentificationResult(
+                    medicine_name=selected.name,
+                    active_ingredient=selected.active_ingredient,
+                    strength=selected.strength,
+                    identification_status="verified",
+                    identification_confidence=1.0,
+                )
+
+            # Missing or mismatched strength, or ambiguous records.
             return IdentificationResult(
-                medicine_name=selected.name,
-                active_ingredient=selected.active_ingredient,
-                strength=extracted_strength or selected.strength,
-                identification_status="verified",
-                identification_confidence=1.0,  # Exact database match
+                medicine_name=clean_cand,
+                active_ingredient=None,
+                strength=extracted_strength,
+                identification_status="requires_verification",
+                identification_confidence=None,
             )
 
-        # CASE 3: Populated database - Controlled Fuzzy Matching
-        best_match: Optional[DrugRecord] = None
-        best_ratio = 0.0
+        # CASE 4: Controlled fuzzy matching with tie detection.
+        scored_matches = []
 
-        for rec in self._records:
-            ratio = difflib.SequenceMatcher(None, cand_lower, rec.name.lower()).ratio()
-            if ratio > best_ratio:
-                best_ratio = ratio
-                best_match = rec
+        for record in self._records:
+            ratio = difflib.SequenceMatcher(
+                None,
+                cand_lower,
+                record.name.lower(),
+            ).ratio()
 
-        if best_ratio >= self.FUZZY_ACCEPTANCE_THRESHOLD and best_match:
-            # Controlled fuzzy match accepted with similarity score
-            conf = round(best_ratio, 3)
+            if ratio >= self.FUZZY_ACCEPTANCE_THRESHOLD:
+                scored_matches.append((ratio, record))
+
+        if scored_matches:
+            best_ratio = max(score for score, _ in scored_matches)
+
+            best_candidates = [
+                record
+                for score, record in scored_matches
+                if score == best_ratio
+            ]
+
+            # Do not arbitrarily select between different medicine names.
+            best_names = {
+                record.name.lower()
+                for record in best_candidates
+            }
+
+            if len(best_names) > 1:
+                return IdentificationResult(
+                    medicine_name=clean_cand,
+                    active_ingredient=None,
+                    strength=extracted_strength,
+                    identification_status="requires_verification",
+                    identification_confidence=None,
+                )
+
+            best_match = best_candidates[0]
+
+            same_name_records = [
+                record
+                for record in self._records
+                if record.name.lower() == best_match.name.lower()
+            ]
+
+            if extracted_strength:
+                target = self._normalize_strength(extracted_strength)
+
+                matching = [
+                    record
+                    for record in same_name_records
+                    if self._normalize_strength(record.strength) == target
+                ]
+
+                if len(matching) != 1:
+                    return IdentificationResult(
+                        medicine_name=clean_cand,
+                        active_ingredient=None,
+                        strength=extracted_strength,
+                        identification_status="requires_verification",
+                        identification_confidence=None,
+                    )
+
+                best_match = matching[0]
+
+            elif len(same_name_records) != 1:
+                return IdentificationResult(
+                    medicine_name=clean_cand,
+                    active_ingredient=None,
+                    strength=None,
+                    identification_status="requires_verification",
+                    identification_confidence=None,
+                )
+
             return IdentificationResult(
                 medicine_name=best_match.name,
                 active_ingredient=best_match.active_ingredient,
                 strength=extracted_strength or best_match.strength,
                 identification_status="fuzzy_matched",
-                identification_confidence=conf,
+                identification_confidence=round(best_ratio, 3),
             )
 
-        # CASE 4: No match above strict threshold
-        # Preserve original extracted text and flag as requires_verification / unrecognized
+        # CASE 5: No sufficiently reliable match.
         return IdentificationResult(
             medicine_name=clean_cand,
             active_ingredient=None,
@@ -200,21 +368,3 @@ class MedicineIdentifier:
             identification_status="requires_verification",
             identification_confidence=None,
         )
-
-    @staticmethod
-    def _select_best_by_strength(
-        candidates: list[DrugRecord],
-        target_strength: Optional[str],
-    ) -> DrugRecord:
-        """Select best candidate when multiple entries have same name but differing strengths."""
-        if len(candidates) == 1 or not target_strength:
-            return candidates[0]
-
-        target_norm = target_strength.lower().replace(" ", "")
-        for cand in candidates:
-            if cand.strength:
-                cand_norm = cand.strength.lower().replace(" ", "")
-                if cand_norm == target_norm:
-                    return cand
-
-        return candidates[0]
