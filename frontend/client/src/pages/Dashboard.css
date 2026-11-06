@@ -657,3 +657,17 @@
     margin-left: auto;
   }
 }
+.profile-clickable {
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 5px 10px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 12px;
+}
+
+.profile-clickable:hover {
+  background: #f0f8f5;
+}

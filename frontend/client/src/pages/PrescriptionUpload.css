@@ -400,3 +400,23 @@
     min-height: 190px;
   }
 }
+.back-dashboard-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  margin-bottom: 22px;
+  background: #ffffff;
+  color: #176b58;
+  border: 1px solid #dce9e4;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-dashboard-button:hover {
+  background: #e7f5ef;
+  border-color: #176b58;
+}

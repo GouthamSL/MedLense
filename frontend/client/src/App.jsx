@@ -1,6 +1,8 @@
 import Dashboard from "./pages/Dashboard";
 import PrescriptionUpload from "./pages/PrescriptionUpload";
 import PrescriptionAnalysis from "./pages/PrescriptionAnalysis";
+import History from "./pages/History";
+import PatientProfile from "./pages/PatientProfile";
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import {
@@ -257,6 +259,11 @@ function App() {
       path="/prescription-analysis"
       element={<PrescriptionAnalysis />}
     />
+    <Route path="/history" element={<History />} />
+    <Route
+  path="/patient-profile"
+  element={<PatientProfile />}
+/>
   </Routes>
 </BrowserRouter>
   );

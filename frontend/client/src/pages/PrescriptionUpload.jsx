@@ -5,8 +5,12 @@ import {
   Trash2, ArrowRight, ShieldCheck, ClipboardList
 } from "lucide-react";
 import "./PrescriptionUpload.css";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 
 export default function PrescriptionUpload() {
+    
+const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [manualMode, setManualMode] = useState(false);
   const [medicine, setMedicine] = useState({
@@ -99,6 +103,14 @@ const handleContinue = () => {
 
   return (
     <div className="prescription-page">
+        <button
+  type="button"
+  className="back-dashboard-button"
+  onClick={() => navigate("/dashboard")}
+>
+  <ArrowLeft size={18} />
+  Back to Dashboard
+</button>
 
       <div className="prescription-heading">
         <div>
